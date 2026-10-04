@@ -114,3 +114,7 @@ def read_root():
     return {"message": "API is running!"}
 
 # app.include_router(auth.router)   # add your routers here
+
+from routes import users
+
+app.include_router(users.router, prefix="/api/v1")
