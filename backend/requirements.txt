@@ -1,1 +1,23 @@
-FastApi == 
+FastApi[Standard]
+Everything should be in virtual environment (env) folder
+Beanie as a ODM and pymongo,AsyncMongo, 
+installed phone_numbers , pymongo, bcrypt
+MongoDb as a database, 
+db folder handles database 
+in /backend/src/index.py -> handles database connection with db/index.py
+controllers handles logic related to model, like register,login, generate token, becrypt 
+middleware act as a gateway, to verify authentication using tokens
+models define the structure of object
+routes are separate folder to define endpoints
+utils is used to write the utilities which need frequently , like apiError logic, apiResponse etc.
+donot touch .env without permission,or admin manually do everything in .env file
+constants.js stores the dbname
+
+# models/user.py
+
+define fullname, email(optinal and not unique , string ), phone number(unique, string),language(string, allLanguageoptions), created_at(datetime), updated_at(datetime)
+
+
+# controllers/users.py
+
+in this define register user, login user, update user(check changed thing is unique), generate token, access token, refresh token

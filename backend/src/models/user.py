@@ -121,6 +121,7 @@ class User(Document):
     email: Optional[EmailStr] = None
     phone_number: Annotated[str, Indexed(unique=True)]
     fullname: Annotated[str, Indexed()] = Field(..., min_length=2, max_length=100)
+    # language: Optional[str] = Field(...,max = 1,default="English")
     # avatar: str  # Cloudinary URL
     # cover_image: Optional[str] = None
     
