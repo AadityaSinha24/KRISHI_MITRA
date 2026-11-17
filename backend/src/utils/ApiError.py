@@ -15,4 +15,4 @@ class ApiError(HTTPException):
         self.message = message
         self.data = None
         self.success = False
-        self.errors = errors or []
+        self.errors = errors if errors is not None else []

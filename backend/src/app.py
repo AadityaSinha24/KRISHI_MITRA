@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+from utils.ApiError import ApiError
 
 from db.index import connect_db, close_db   # your connection file (adjust the module name)
 
@@ -53,6 +54,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Custom AsyncHandler :
+
+@app.exception_handler(ApiError)
+async def api_error_handler(request: Request, exc: ApiError):
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": exc.success,
+            "message": exc.message,
+            "data": exc.data,
+            "errors": exc.errors
+        },
+        headers=exc.headers
+    )
 
 # Static files
 BASE_DIR = Path(__file__).resolve().parent
