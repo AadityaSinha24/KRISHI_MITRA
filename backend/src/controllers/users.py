@@ -16,7 +16,7 @@ async def register_user(body: User):
         user = User(
             fullname=body.fullname,
             phone_number=body.phone_number,
-            email=body.email or None
+            password=body.password     
         )
     except ValidationError as e:
         raise HTTPException(
