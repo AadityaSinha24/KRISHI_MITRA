@@ -4,7 +4,7 @@ import asyncio
 from dotenv import load_dotenv
 import uvicorn
 
-load_dotenv(dotenv_path="./env")
+load_dotenv(dotenv_path=".env")
 
 from db.index import connect_db
 from app import app
