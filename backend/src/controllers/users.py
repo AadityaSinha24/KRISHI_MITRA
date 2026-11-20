@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
 from models.user import User
-from utils.api_error import ApiError
-from utils.api_response import ApiResponse
+from utils.ApiError import ApiError
+from utils.ApiResponse import api_response
 
 
 class RegisterRequest(BaseModel):
@@ -51,4 +51,4 @@ async def register_user(data: RegisterRequest):
         "createdAt": user.createdAt.isoformat(),
     }
 
-    return ApiResponse(201, created_user, "User registered successfully!!")
+    return api_response(201, created_user, "User registered successfully!!")

@@ -85,10 +85,12 @@ app.mount("/static", StaticFiles(directory=str(public_path)), name="static")
 def read_root():
     return {"message": "API is running!"}
 
-# app.include_router(auth.router)   # add your routers here
 
-# Routes
+
+# Import Routes
 
 from routes import users
+
+# Routes Declaration
 
 app.include_router(users.router, prefix="/api/v1")
