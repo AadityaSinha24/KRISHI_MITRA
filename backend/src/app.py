@@ -87,6 +87,8 @@ def read_root():
 
 # app.include_router(auth.router)   # add your routers here
 
+# Routes
+
 from routes import users
 
 app.include_router(users.router, prefix="/api/v1")
