@@ -38,6 +38,10 @@ def parse_expiry(expiry_str: str) -> timedelta:
 class User(Document):
     phoneNumber: Annotated[str, Indexed(unique=True)] = Field(min_length=8, max_length=16)
     fullname: str = Field(min_length=1, max_length=100)
+    city: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    state: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    country: Optional[str] = Field(default=None, min_length=1, max_length=100)
+
     password: str  # stores the HASH
     refreshToken: Optional[str] = None
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -74,6 +78,8 @@ class User(Document):
             "_id": str(self.id),
             "phoneNumber": self.phoneNumber,
             "fullname": self.fullname,
+            "city": self.city,
+            "state": self.state,
             "exp": datetime.now(timezone.utc) + delta,
         }
 
