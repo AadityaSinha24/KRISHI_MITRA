@@ -1,40 +1,51 @@
 import asyncio
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
 import bcrypt
-from beanie import Document, Indexed, before_event, Insert, Replace, Save
-from pydantic import Field
 import jwt
+from beanie import Document, Indexed, Insert, Replace, Save, before_event
+from pydantic import Field
+
+_EXPIRY_PATTERN = re.compile(r"^(\d+)([smhdw])$", re.IGNORECASE)
+_UNIT_TO_TIMEDELTA = {
+    "s": "seconds",
+    "m": "minutes",
+    "h": "hours",
+    "d": "days",
+    "w": "weeks",
+}
+
 
 def _hash_sync(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=10)).decode("utf-8")
+    password_bytes = password.encode("utf-8")
+    if len(password_bytes) > 72:
+        raise ValueError("Password cannot exceed 72 UTF-8 bytes for bcrypt.")
+    return bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=10)).decode("utf-8")
 
 
 def parse_expiry(expiry_str: str) -> timedelta:
-    """Parses environment strings like '1d', '15m', '2h', '30s' into timedelta."""
+    """Parses strings like '1d', '15m', '2h', '30s', '1w' into a timedelta."""
     if not expiry_str:
-        return timedelta(days=1)  # Default fallback
-    
-    unit = expiry_str[-1].lower()
-    try:
-        value = int(expiry_str[:-1])
-    except ValueError:
-        return timedelta(days=1)
+        raise ValueError("Token expiry environment variable cannot be empty.")
 
-    if unit == "s":
-        return timedelta(seconds=value)
-    elif unit == "m":
-        return timedelta(minutes=value)
-    elif unit == "h":
-        return timedelta(hours=value)
-    elif unit == "d":
-        return timedelta(days=value)
-    elif unit == "w":
-        return timedelta(weeks=value)
-    
-    return timedelta(days=1)
+    match = _EXPIRY_PATTERN.match(expiry_str.strip())
+    if not match:
+        raise ValueError(f"Invalid expiry format: '{expiry_str}'. Use e.g. '15m', '1h', '1d', '7d'.")
+
+    value = int(match.group(1))
+    unit = match.group(2).lower()
+    return timedelta(**{_UNIT_TO_TIMEDELTA[unit]: value})
+
+
+def _get_required_env(key: str) -> str:
+    value = os.getenv(key)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {key}")
+    return value
+
 
 class User(Document):
     phoneNumber: Annotated[str, Indexed(unique=True)] = Field(min_length=8, max_length=16)
@@ -52,28 +63,35 @@ class User(Document):
         name = "users"
         use_state_management = True
 
-    # --- EQUIVALENT TO Mongoose pre("save") ---
     @before_event(Insert, Replace, Save)
     async def hash_password(self):
         if self.get_saved_state() is None or "password" in self.get_changes():
-            # Extra safety check: only hash if it doesn't already look like a bcrypt hash
-            if not self.password.startswith(("$2b$", "$2a$", "$2y$")):
+            # Avoid double-hashing if already a valid 60-char bcrypt hash
+            is_already_bcrypt = (
+                len(self.password) == 60
+                and self.password.startswith(("$2b$", "$2a$", "$2y$"))
+            )
+            if not is_already_bcrypt:
                 self.password = await asyncio.to_thread(_hash_sync, self.password)
+
         self.updatedAt = datetime.now(timezone.utc)
 
-    # --- EQUIVALENT TO Mongoose userSchema.methods.isPasswordCorrect ---
     async def is_password_correct(self, password: str) -> bool:
+        password_bytes = password.encode("utf-8")
+        if len(password_bytes) > 72:
+            return False
         return await asyncio.to_thread(
             bcrypt.checkpw,
-            password.encode("utf-8"),
+            password_bytes,
             self.password.encode("utf-8"),
         )
 
-    # This is generating the access token using jwt:
     def generate_access_token(self) -> str:
-        # Read expiry string from env (e.g., ACCESS_TOKEN_EXPIRY="15m" or "1d")
-        expiry_env = os.getenv("ACCESS_TOKEN_EXPIRY", "1d")
-        delta = parse_expiry(expiry_env)
+        if self.id is None:
+            raise ValueError("Cannot generate access token before saving the user.")
+
+        delta = parse_expiry(os.getenv("ACCESS_TOKEN_EXPIRY", "1d"))
+        secret_key = _get_required_env("ACCESS_TOKEN_SECRET")
 
         payload = {
             "_id": str(self.id),
@@ -83,20 +101,17 @@ class User(Document):
             "state": self.state,
             "exp": datetime.now(timezone.utc) + delta,
         }
-
-        secret_key = os.getenv("ACCESS_TOKEN_SECRET", "your-access-secret-key")
         return jwt.encode(payload, secret_key, algorithm="HS256")
 
-    
     def generate_refresh_token(self) -> str:
-        # Read refresh expiry string from env (e.g., REFRESH_TOKEN_EXPIRY="7d")
-        expiry_env = os.getenv("REFRESH_TOKEN_EXPIRY", "7d")
-        delta = parse_expiry(expiry_env)
+        if self.id is None:
+            raise ValueError("Cannot generate refresh token before saving the user.")
+
+        delta = parse_expiry(os.getenv("REFRESH_TOKEN_EXPIRY", "7d"))
+        secret_key = _get_required_env("REFRESH_TOKEN_SECRET")
 
         payload = {
             "_id": str(self.id),
             "exp": datetime.now(timezone.utc) + delta,
         }
-
-        secret_key = os.getenv("REFRESH_TOKEN_SECRET", "your-refresh-secret-key")
         return jwt.encode(payload, secret_key, algorithm="HS256")
