@@ -6,7 +6,7 @@ from pydantic import StringConstraints
 from models.user import User
 from utils.ApiError import ApiError
 from utils.ApiResponse import api_response
-from fastapi import Depends, Response
+from fastapi import Depends
 import jwt
 from beanie import PydanticObjectId
 from fastapi import Request, Response
@@ -14,6 +14,14 @@ from fastapi import Request, Response
 from middlewares.auth import verify_jwt
 
 Trimmed = Annotated[str, StringConstraints(strip_whitespace=True)]
+
+IS_PROD = os.getenv("ENV", "development") == "production"
+
+COOKIE_OPTIONS = {
+    "httponly": True,
+    "secure": IS_PROD,
+    "samesite": "none" if IS_PROD else "lax",
+}
 
 class RegisterRequest(BaseModel):
     phoneNumber: str = Field(min_length=8, max_length=16)
@@ -91,9 +99,8 @@ async def login_user(data: LoginRequest, response: Response):
     access_token, refresh_token = await generate_access_refresh_tokens(user)
 
     # 4) cookies (same as your JS options)
-    cookie_options = {"httponly": True, "secure": True, "samesite": "none"}
-    response.set_cookie("accessToken", access_token, **cookie_options)
-    response.set_cookie("refreshToken", refresh_token, **cookie_options)
+    response.set_cookie("accessToken", access_token, **COOKIE_OPTIONS)
+    response.set_cookie("refreshToken", refresh_token, **COOKIE_OPTIONS)
 
     # 5) response without password / refreshToken
     logged_in_user = {
@@ -118,9 +125,8 @@ async def logout_user(response: Response, current_user: User = Depends(verify_jw
     await current_user.save()  # password unchanged, so it is not re-hashed
 
     # clear cookies (options must match the ones used in login)
-    cookie_options = {"httponly": True, "secure": True, "samesite": "none"}
-    response.delete_cookie("accessToken", **cookie_options)
-    response.delete_cookie("refreshToken", **cookie_options)
+    response.delete_cookie("accessToken", **COOKIE_OPTIONS)
+    response.delete_cookie("refreshToken", **COOKIE_OPTIONS)
 
     return ApiResponse(200, {}, "User logged out!")
 
@@ -167,12 +173,25 @@ async def refresh_access_token(
 
     access_token, new_refresh_token = await generate_access_refresh_tokens(user)
 
-    cookie_options = {"httponly": True, "secure": True, "samesite": "none"}
-    response.set_cookie("accessToken", access_token, **cookie_options)
-    response.set_cookie("refreshToken", new_refresh_token, **cookie_options)
+    response.set_cookie("accessToken", access_token, **COOKIE_OPTIONS)
+    response.set_cookie("refreshToken", new_refresh_token, **COOKIE_OPTIONS)
 
     return ApiResponse(
         200,
         {"accessToken": access_token, "refreshToken": new_refresh_token},
         "Access token refreshed successfully!",
+    )
+
+async def get_current_user(current_user: User = Depends(verify_jwt)):
+    return api_response(
+        200,
+        {
+            "id": str(current_user.id),
+            "phoneNumber": current_user.phoneNumber,
+            "fullname": current_user.fullname,
+            "city": current_user.city,
+            "state": current_user.state,
+            "country": current_user.country,
+        },
+        "Current user fetched successfully",
     )
