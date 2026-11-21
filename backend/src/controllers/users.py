@@ -1,12 +1,16 @@
-from typing import Optional
+from typing import Optional, Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field , field_validator
 from pymongo.errors import DuplicateKeyError
-
+from pydantic import StringConstraints
 from models.user import User
 from utils.ApiError import ApiError
 from utils.ApiResponse import api_response
+from fastapi import Depends, Response
 
+from middlewares.auth import verify_jwt
+
+Trimmed = Annotated[str, StringConstraints(strip_whitespace=True)]
 
 class RegisterRequest(BaseModel):
     phoneNumber: str = Field(min_length=8, max_length=16)
@@ -103,3 +107,16 @@ async def login_user(data: LoginRequest, response: Response):
         {"user": logged_in_user, "accessToken": access_token, "refreshToken": refresh_token},
         "User logged in successfully",
     )
+
+
+async def logout_user(response: Response, current_user: User = Depends(verify_jwt)):
+    # reset refresh token (like $unset)
+    current_user.refreshToken = None
+    await current_user.save()  # password unchanged, so it is not re-hashed
+
+    # clear cookies (options must match the ones used in login)
+    cookie_options = {"httponly": True, "secure": True, "samesite": "none"}
+    response.delete_cookie("accessToken", **cookie_options)
+    response.delete_cookie("refreshToken", **cookie_options)
+
+    return ApiResponse(200, {}, "User logged out!")
