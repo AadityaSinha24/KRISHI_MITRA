@@ -52,3 +52,54 @@ async def register_user(data: RegisterRequest):
     }
 
     return api_response(201, created_user, "User registered successfully!!")
+
+async def generate_access_refresh_tokens(user: User) -> tuple[str, str]:
+    try:
+        access_token = user.generate_access_token()
+        refresh_token = user.generate_refresh_token()
+
+        user.refreshToken = refresh_token
+        await user.save()  # password unchanged, so the hook does not re-hash it
+
+        return access_token, refresh_token
+    except Exception:
+        raise ApiError(500, "Something went wrong while generating access and refresh token")
+
+
+class LoginRequest(BaseModel):
+    phoneNumber: Trimmed = Field(min_length=8, max_length=16)
+    password: str = Field(min_length=1, max_length=128)  # not stripped
+
+async def login_user(data: LoginRequest, response: Response):
+    # 1) find user
+    user = await User.find_one(User.phoneNumber == data.phoneNumber)
+    if not user:
+        raise ApiError(404, "User does not exist")
+
+    # 2) check password
+    if not await user.is_password_correct(data.password):
+        raise ApiError(401, "Invalid user credentials")
+
+    # 3) tokens
+    access_token, refresh_token = await generate_access_refresh_tokens(user)
+
+    # 4) cookies (same as your JS options)
+    cookie_options = {"httponly": True, "secure": True, "samesite": "none"}
+    response.set_cookie("accessToken", access_token, **cookie_options)
+    response.set_cookie("refreshToken", refresh_token, **cookie_options)
+
+    # 5) response without password / refreshToken
+    logged_in_user = {
+        "id": str(user.id),
+        "phoneNumber": user.phoneNumber,
+        "fullname": user.fullname,
+        "city": user.city,
+        "state": user.state,
+        "country": user.country,
+    }
+
+    return api_response(
+        200,
+        {"user": logged_in_user, "accessToken": access_token, "refreshToken": refresh_token},
+        "User logged in successfully",
+    )
