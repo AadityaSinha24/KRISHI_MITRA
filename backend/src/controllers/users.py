@@ -10,11 +10,11 @@ from utils.ApiResponse import api_response
 
 class RegisterRequest(BaseModel):
     phoneNumber: str = Field(min_length=8, max_length=16)
-    fullname: str = Field(min_length=1, max_length=100)
+    fullname: str = Field(min_length=3, max_length=100)
     password: str = Field(min_length=8, max_length=72)  # plain password, validated here
     city: Optional[str] = Field(default=None, min_length=1, max_length=100)
-    state: Optional[str] = Field(default=None, min_length=1, max_length=100)
-    country: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    state: Optional[str] = Field(default=None, min_length=3, max_length=100)
+    country: Optional[str] = Field(default=None, min_length=3, max_length=100)
 
     model_config = {"str_strip_whitespace": True}
 

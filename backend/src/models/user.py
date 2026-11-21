@@ -49,10 +49,10 @@ def _get_required_env(key: str) -> str:
 
 class User(Document):
     phoneNumber: Annotated[str, Indexed(unique=True)] = Field(min_length=8, max_length=16)
-    fullname: str = Field(min_length=1, max_length=100)
+    fullname: str = Field(min_length=3, max_length=100)
     city: Optional[str] = Field(default=None, min_length=1, max_length=100)
-    state: Optional[str] = Field(default=None, min_length=1, max_length=100)
-    country: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    state: Optional[str] = Field(default=None, min_length=3, max_length=100)
+    country: Optional[str] = Field(default=None, min_length=3, max_length=100)
 
     password: str  # stores the HASH
     refreshToken: Optional[str] = None
