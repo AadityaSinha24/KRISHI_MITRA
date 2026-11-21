@@ -24,14 +24,12 @@ COOKIE_OPTIONS = {
 }
 
 class RegisterRequest(BaseModel):
-    phoneNumber: str = Field(min_length=8, max_length=16)
-    fullname: str = Field(min_length=3, max_length=100)
-    password: str = Field(min_length=8, max_length=72)  # plain password, validated here
-    city: Optional[str] = Field(default=None, min_length=1, max_length=100)
-    state: Optional[str] = Field(default=None, min_length=3, max_length=100)
-    country: Optional[str] = Field(default=None, min_length=3, max_length=100)
-
-    model_config = {"str_strip_whitespace": True}
+    phoneNumber: Trimmed = Field(min_length=8, max_length=16)
+    fullname: Trimmed = Field(min_length=3, max_length=100)
+    password: str = Field(min_length=8, max_length=72)  # not stripped
+    city: Optional[Trimmed] = Field(default=None, min_length=1, max_length=100)
+    state: Optional[Trimmed] = Field(default=None, min_length=3, max_length=100)
+    country: Optional[Trimmed] = Field(default=None, min_length=3, max_length=100)
 
 
 async def register_user(data: RegisterRequest):
@@ -83,26 +81,19 @@ async def generate_access_refresh_tokens(user: User) -> tuple[str, str]:
 
 class LoginRequest(BaseModel):
     phoneNumber: Trimmed = Field(min_length=8, max_length=16)
-    password: str = Field(min_length=8, max_length=128)  # not stripped
+    password: str = Field(min_length=1, max_length=128)
 
-async def login_user(data: LoginRequest, response: Response):
-    # 1) find user
+
+async def login_user(data: LoginRequest):
     user = await User.find_one(User.phoneNumber == data.phoneNumber)
     if not user:
         raise ApiError(404, "User does not exist")
 
-    # 2) check password
     if not await user.is_password_correct(data.password):
         raise ApiError(401, "Invalid user credentials")
 
-    # 3) tokens
     access_token, refresh_token = await generate_access_refresh_tokens(user)
 
-    # 4) cookies (same as your JS options)
-    response.set_cookie("accessToken", access_token, **COOKIE_OPTIONS)
-    response.set_cookie("refreshToken", refresh_token, **COOKIE_OPTIONS)
-
-    # 5) response without password / refreshToken
     logged_in_user = {
         "id": str(user.id),
         "phoneNumber": user.phoneNumber,
@@ -112,23 +103,23 @@ async def login_user(data: LoginRequest, response: Response):
         "country": user.country,
     }
 
-    return api_response(
+    res = api_response(
         200,
         {"user": logged_in_user, "accessToken": access_token, "refreshToken": refresh_token},
         "User logged in successfully",
     )
+    res.set_cookie("accessToken", access_token, **COOKIE_OPTIONS)
+    res.set_cookie("refreshToken", refresh_token, **COOKIE_OPTIONS)
+    return res
 
-
-async def logout_user(response: Response, current_user: User = Depends(verify_jwt)):
-    # reset refresh token (like $unset)
+async def logout_user(current_user: User = Depends(verify_jwt)):
     current_user.refreshToken = None
-    await current_user.save()  # password unchanged, so it is not re-hashed
+    await current_user.save()
 
-    # clear cookies (options must match the ones used in login)
-    response.delete_cookie("accessToken", **COOKIE_OPTIONS)
-    response.delete_cookie("refreshToken", **COOKIE_OPTIONS)
-
-    return ApiResponse(200, {}, "User logged out!")
+    res = api_response(200, {}, "User logged out!")
+    res.delete_cookie("accessToken", **COOKIE_OPTIONS)
+    res.delete_cookie("refreshToken", **COOKIE_OPTIONS)
+    return res
 
 
 class RefreshRequest(BaseModel):
@@ -137,7 +128,6 @@ class RefreshRequest(BaseModel):
 
 async def refresh_access_token(
     request: Request,
-    response: Response,
     data: Optional[RefreshRequest] = None,
 ):
     # cookie first, then body (same as req.cookies.refreshToken || req.body.refreshToken)
@@ -173,14 +163,14 @@ async def refresh_access_token(
 
     access_token, new_refresh_token = await generate_access_refresh_tokens(user)
 
-    response.set_cookie("accessToken", access_token, **COOKIE_OPTIONS)
-    response.set_cookie("refreshToken", new_refresh_token, **COOKIE_OPTIONS)
-
-    return ApiResponse(
+    res = api_response(
         200,
         {"accessToken": access_token, "refreshToken": new_refresh_token},
         "Access token refreshed successfully!",
     )
+    res.set_cookie("accessToken", access_token, **COOKIE_OPTIONS)
+    res.set_cookie("refreshToken", new_refresh_token, **COOKIE_OPTIONS)
+    return res
 
 async def get_current_user(current_user: User = Depends(verify_jwt)):
     return api_response(

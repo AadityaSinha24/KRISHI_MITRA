@@ -12,6 +12,7 @@ from utils.ApiError import ApiError
 async def verify_jwt(request: Request) -> User:
     # token from cookie, or from "Authorization: Bearer <token>"
     token: Optional[str] = request.cookies.get("accessToken")
+    print(token)
 
     if not token:
         auth_header = request.headers.get("Authorization", "")
