@@ -1,5 +1,5 @@
 from typing import Optional, Annotated
-
+import os
 from pydantic import BaseModel, Field , field_validator
 from pymongo.errors import DuplicateKeyError
 from pydantic import StringConstraints
@@ -7,6 +7,9 @@ from models.user import User
 from utils.ApiError import ApiError
 from utils.ApiResponse import api_response
 from fastapi import Depends, Response
+import jwt
+from beanie import PydanticObjectId
+from fastapi import Request, Response
 
 from middlewares.auth import verify_jwt
 
@@ -120,3 +123,56 @@ async def logout_user(response: Response, current_user: User = Depends(verify_jw
     response.delete_cookie("refreshToken", **cookie_options)
 
     return ApiResponse(200, {}, "User logged out!")
+
+
+class RefreshRequest(BaseModel):
+    refreshToken: Optional[str] = None
+
+
+async def refresh_access_token(
+    request: Request,
+    response: Response,
+    data: Optional[RefreshRequest] = None,
+):
+    # cookie first, then body (same as req.cookies.refreshToken || req.body.refreshToken)
+    incoming_refresh_token = request.cookies.get("refreshToken") or (
+        data.refreshToken if data else None
+    )
+
+    if not incoming_refresh_token:
+        raise ApiError(401, "Unauthorized request")
+
+    secret = os.getenv("REFRESH_TOKEN_SECRET")
+    if not secret:
+        raise ApiError(500, "Server configuration error")
+
+    try:
+        decoded = jwt.decode(incoming_refresh_token, secret, algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        raise ApiError(401, "Refresh token expired")
+    except jwt.InvalidTokenError:
+        raise ApiError(401, "Invalid refresh token")
+
+    user_id = decoded.get("_id")
+    if not user_id or not PydanticObjectId.is_valid(user_id):
+        raise ApiError(401, "Invalid refresh token")
+
+    user = await User.get(PydanticObjectId(user_id))
+    if not user:
+        raise ApiError(401, "Invalid refresh token")
+
+    # token must match the one stored in the DB (rotation: old tokens stop working)
+    if incoming_refresh_token != user.refreshToken:
+        raise ApiError(401, "Refresh token is expired or used")
+
+    access_token, new_refresh_token = await generate_access_refresh_tokens(user)
+
+    cookie_options = {"httponly": True, "secure": True, "samesite": "none"}
+    response.set_cookie("accessToken", access_token, **cookie_options)
+    response.set_cookie("refreshToken", new_refresh_token, **cookie_options)
+
+    return ApiResponse(
+        200,
+        {"accessToken": access_token, "refreshToken": new_refresh_token},
+        "Access token refreshed successfully!",
+    )
