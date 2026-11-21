@@ -75,7 +75,7 @@ async def generate_access_refresh_tokens(user: User) -> tuple[str, str]:
 
 class LoginRequest(BaseModel):
     phoneNumber: Trimmed = Field(min_length=8, max_length=16)
-    password: str = Field(min_length=1, max_length=128)  # not stripped
+    password: str = Field(min_length=8, max_length=128)  # not stripped
 
 async def login_user(data: LoginRequest, response: Response):
     # 1) find user
