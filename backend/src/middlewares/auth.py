@@ -3,56 +3,41 @@ from typing import Optional
 
 import jwt
 from beanie import PydanticObjectId
-from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Request
 
 from models.user import User
-
-# auto_error=False so we can also fall back to the cookie.
-# It also gives you the "Authorize" button in Swagger (/docs).
-bearer_scheme = HTTPBearer(auto_error=False)
+from utils.ApiError import ApiError
 
 
-def _unauthorized(message: str) -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail=message,
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-
-async def verify_jwt(
-    request: Request,
-    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
-) -> User:
-    # 1) Get the token: cookie first, then the Authorization header
-    token = request.cookies.get("accessToken") or (creds.credentials if creds else None)
+async def verify_jwt(request: Request) -> User:
+    # token from cookie, or from "Authorization: Bearer <token>"
+    token: Optional[str] = request.cookies.get("accessToken")
 
     if not token:
-        raise _unauthorized("Unauthorized request")
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.lower().startswith("bearer "):
+            token = auth_header[7:].strip()
 
-    # 2) Verify the token (signature + expiry)
+    if not token:
+        raise ApiError(401, "Unauthorized request")
+
+    secret = os.getenv("ACCESS_TOKEN_SECRET")
+    if not secret:
+        raise ApiError(500, "Server configuration error")
+
     try:
-        decoded = jwt.decode(
-            token,
-            os.getenv("ACCESS_TOKEN_SECRET", "default_secret"),
-            algorithms=["HS256"],
-        )
+        decoded = jwt.decode(token, secret, algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
-        raise _unauthorized("Access token expired")
+        raise ApiError(401, "Access token expired")
     except jwt.InvalidTokenError:
-        raise _unauthorized("Invalid access token")
+        raise ApiError(401, "Invalid access token")
 
-    # 3) Find the user
     user_id = decoded.get("_id")
-    try:
-        user = await User.get(PydanticObjectId(user_id))
-    except Exception:
-        raise _unauthorized("Invalid access token")
+    if not user_id or not PydanticObjectId.is_valid(user_id):
+        raise ApiError(401, "Invalid access token")
 
+    user = await User.get(PydanticObjectId(user_id))
     if not user:
-        raise _unauthorized("Invalid access token")
+        raise ApiError(401, "Invalid access token")
 
-    # 4) Like `req.user = user`, but optional: also keep it on the request
-    request.state.user = user
-    return user
+    return user  # like req.user
