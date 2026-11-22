@@ -1,26 +1,40 @@
-import { useEffect, useState } from "react";
-import api, { getErrorMessage } from "./api";
+import { useCallback, useEffect, useState } from 'react'
+import { getMenu } from '../services/promptService'
+import getErrorMessage from '../utils/getErrorMessage'
 
-// fetches the menu from the backend
-export const fetchMenu = async () => {
-  const res = await api.get("/prompt/menu");
-  return res.data.data.menu; // [{ key: "1", label: "..." }, ...]
-};
+// The sentence that is read aloud for one menu item, e.g.
+// "गेहूं की फसल की जानकारी के लिए 1 दबाएं"
+export function menuSpeech(item) {
+  return `${item.label} के लिए ${item.key} दबाएं`
+}
 
-// hook used by the Dashboard
+// Fetches the menu from GET /prompt/menu -> [{ key, label }]
 export default function useMenu() {
-  const [menu, setMenu] = useState([]);
-  const [menuError, setMenuError] = useState("");
+  const [state, setState] = useState({ items: [], loading: true, error: '' })
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    let active = true;
-    fetchMenu()
-      .then((m) => active && setMenu(m))
-      .catch((err) => active && setMenuError(getErrorMessage(err)));
-    return () => {
-      active = false;
-    };
-  }, []);
+    let ignore = false
 
-  return { menu, menuError };
+    getMenu()
+      .then((items) => {
+        if (!ignore) setState({ items, loading: false, error: '' })
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setState({ items: [], loading: false, error: getErrorMessage(error) })
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [attempt])
+
+  const reload = useCallback(() => {
+    setState((prev) => ({ ...prev, loading: true, error: '' }))
+    setAttempt((n) => n + 1)
+  }, [])
+
+  return { items: state.items, loading: state.loading, error: state.error, reload }
 }

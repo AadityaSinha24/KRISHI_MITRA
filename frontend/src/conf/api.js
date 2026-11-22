@@ -1,44 +1,59 @@
-import axios from "axios";
-import conf from "./conf";
+import axios from 'axios'
+import conf from './conf'
 
+// Session lives in httpOnly cookies set by the backend, so we only need withCredentials.
 const api = axios.create({
   baseURL: conf.apiUrl,
-  withCredentials: true, // sends and receives your httpOnly cookies
-});
+  withCredentials: true,
+  timeout: 30000,
+})
 
-const AUTH_URLS = ["/users/login", "/users/register", "/users/refresh-token"];
-let refreshPromise = null; // so parallel 401s trigger only one refresh
+// A separate client without interceptors, so a failing refresh can never loop.
+const refreshClient = axios.create({
+  baseURL: conf.apiUrl,
+  withCredentials: true,
+  timeout: 15000,
+})
+
+// These endpoints must never trigger a refresh (a wrong password is also a 401).
+const NO_REFRESH = ['/users/login', '/users/register', '/users/refresh-token']
+
+// The backend rotates refresh tokens, so two refreshes at once would break the
+// second one. Every request that gets a 401 shares this one in-flight promise.
+let refreshPromise = null
+
+function refreshSession() {
+  if (!refreshPromise) {
+    refreshPromise = refreshClient.post('/users/refresh-token').finally(() => {
+      refreshPromise = null
+    })
+  }
+  return refreshPromise
+}
 
 api.interceptors.response.use(
-  (res) => res,
+  (response) => response,
   async (error) => {
-    const original = error.config;
-    const isAuthCall = AUTH_URLS.some((u) => original?.url?.includes(u));
+    const original = error.config
+    const status = error.response?.status
 
-    if (error.response?.status === 401 && original && !original._retry && !isAuthCall) {
-      original._retry = true;
-      try {
-        refreshPromise =
-          refreshPromise ||
-          api.post("/users/refresh-token").finally(() => (refreshPromise = null));
-        await refreshPromise;
-        return api(original); // retry the original request
-      } catch {
-        return Promise.reject(error);
-      }
+    const skip =
+      status !== 401 ||
+      !original ||
+      original._retry ||
+      NO_REFRESH.some((path) => original.url?.includes(path))
+
+    if (skip) return Promise.reject(error)
+
+    original._retry = true
+    try {
+      await refreshSession()
+      return api(original)
+    } catch {
+      window.dispatchEvent(new Event('auth:expired'))
+      return Promise.reject(error)
     }
-    return Promise.reject(error);
-  }
-);
+  },
+)
 
-// Turns FastAPI/ApiError responses into one readable message
-export const getErrorMessage = (err) => {
-  const data = err.response?.data;
-  if (Array.isArray(data?.detail)) {
-    const first = data.detail[0];
-    return `${first.loc?.slice(1).join(".")}: ${first.msg}`; // 422 validation
-  }
-  return data?.message || data?.detail || err.message || "Something went wrong";
-};
-
-export default api;
+export default api
