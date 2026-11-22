@@ -1,1 +1,1 @@
-DB_NAME = "Cluster0"
+DB_NAME = "cluster0"
