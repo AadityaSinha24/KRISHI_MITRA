@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from models.user import User
-from prompts import PROMPTS
+from prompts import PROMPTS, MENU_LABELS
 from utils.ApiError import ApiError
 from utils.ApiResponse import api_response
 from utils.groq_client import call_qwen

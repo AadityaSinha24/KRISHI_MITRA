@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from controllers.prompt import get_prompt_response
+from controllers.prompt import get_prompt_response,get_menu
 
 router = APIRouter(prefix="/prompt", tags=["prompt"])
 
