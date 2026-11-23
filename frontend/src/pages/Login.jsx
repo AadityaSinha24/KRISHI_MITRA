@@ -1,50 +1,85 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useDispatch } from "react-redux";
-import { loginUser } from "../store/authSlice";
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useDispatch } from 'react-redux'
+import { Link, useNavigate } from 'react-router-dom'
 
-const field = "w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500";
+import AuthLayout from '../components/AuthLayout'
+import Input from '../components/Input'
+import Loader from '../components/Loader'
+import { loginUser } from '../services/authService'
+import { setUser } from '../store/authSlice'
+import getErrorMessage from '../utils/getErrorMessage'
 
 export default function Login() {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const [form, setForm] = useState({ phoneNumber: "", password: "" });
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const dispatch = useDispatch()
+  const navigate = useNavigate()
+  const [serverError, setServerError] = useState('')
 
-  const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({ defaultValues: { phoneNumber: '', password: '' } })
 
-  const onSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSubmitting(true);
-
-    const result = await dispatch(loginUser(form));
-    setSubmitting(false);
-
-    if (loginUser.fulfilled.match(result)) {
-      navigate("/");
-    } else {
-      setError(result.payload || "Login failed");
+  const onSubmit = async (values) => {
+    setServerError('')
+    try {
+      const user = await loginUser({
+        phoneNumber: values.phoneNumber.trim(),
+        password: values.password,
+      })
+      dispatch(setUser(user))
+      navigate('/', { replace: true })
+    } catch (error) {
+      setServerError(getErrorMessage(error))
     }
-  };
+  }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
-      <form onSubmit={onSubmit} className="w-full max-w-md space-y-4 rounded-lg bg-white p-6 shadow">
-        <h1 className="text-2xl font-bold">Login</h1>
-        {error && <p className="rounded bg-red-100 p-2 text-sm text-red-700">{error}</p>}
+    <AuthLayout title="लॉगिन करें" subtitle="अपने मोबाइल नंबर और पासवर्ड से अंदर आएं।">
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+        <Input
+          label="मोबाइल नंबर"
+          type="tel"
+          inputMode="numeric"
+          autoComplete="tel"
+          error={errors.phoneNumber?.message}
+          {...register('phoneNumber', {
+            validate: (v) => v.trim().length > 0 || 'मोबाइल नंबर लिखें',
+          })}
+        />
 
-        <input className={field} name="phoneNumber" placeholder="Phone number" value={form.phoneNumber} onChange={onChange} required />
-        <input className={field} type="password" name="password" placeholder="Password" value={form.password} onChange={onChange} required />
+        <Input
+          label="पासवर्ड"
+          type="password"
+          autoComplete="current-password"
+          error={errors.password?.message}
+          {...register('password', { required: 'पासवर्ड लिखें' })}
+        />
 
-        <button disabled={submitting} className="w-full rounded bg-blue-600 py-2 text-white hover:bg-blue-700 disabled:opacity-50">
-          {submitting ? "Logging in..." : "Login"}
+        {serverError ? (
+          <p role="alert" className="rounded-lg bg-red-50 p-3 text-base font-medium text-red-700">
+            {serverError}
+          </p>
+        ) : null}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="h-12 w-full rounded-xl bg-leaf-700 text-lg font-semibold text-white hover:bg-leaf-600
+            disabled:opacity-60 focus-visible:outline-4 focus-visible:outline-offset-2
+            focus-visible:outline-wheat-400"
+        >
+          {isSubmitting ? <Loader label="लॉगिन हो रहा है…" /> : 'लॉगिन करें'}
         </button>
-        <p className="text-center text-sm">
-          No account? <Link to="/register" className="text-blue-600">Register</Link>
-        </p>
       </form>
-    </div>
-  );
+
+      <p className="mt-4 text-center text-base">
+        नया खाता बनाना है?{' '}
+        <Link to="/register" className="font-semibold text-leaf-700 underline">
+          रजिस्टर करें
+        </Link>
+      </p>
+    </AuthLayout>
+  )
 }
