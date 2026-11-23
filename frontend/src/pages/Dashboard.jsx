@@ -6,6 +6,9 @@ import api, { getErrorMessage } from "../conf/api";
 import MENU from "../conf/menu";
 import useSpeech from "../conf/useSpeech";
 import Numpad from "../components/Numpad";
+import { logoutUser } from "../services/authService";
+import getErrorMessage from "../utils/getErrorMessage";
+
 
 export default function Dashboard() {
   const dispatch = useDispatch();
