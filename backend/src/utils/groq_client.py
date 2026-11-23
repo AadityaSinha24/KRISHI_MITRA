@@ -23,7 +23,7 @@ def _get_client() -> AsyncGroq:
 async def call_qwen(prompt: str) -> str:
     try:
         completion = await _get_client().chat.completions.create(
-            model=os.getenv("GROQ_MODEL", "qwen/qwen3-32b"),
+            model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
             max_completion_tokens=512,
