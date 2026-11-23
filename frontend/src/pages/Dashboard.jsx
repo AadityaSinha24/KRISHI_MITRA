@@ -1,20 +1,21 @@
 import { useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { logoutUser } from "../store/authSlice";
-import api, { getErrorMessage } from "../conf/api";
-import MENU from "../conf/menu";
+import api from "../conf/api";
+// import MENU from "../conf/menu";
+import useMenu from "../conf/menu";
 import useSpeech from "../conf/useSpeech";
 import Numpad from "../components/Numpad";
 import { logoutUser } from "../services/authService";
 import getErrorMessage from "../utils/getErrorMessage";
+import { clearUser } from "../store/authSlice";
 
 
 export default function Dashboard() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector((s) => s.auth);
-  const { speak, stop, speaking, supported, hasVoice } = useSpeech("hi-IN");
+  const { speak, stop, speaking, supported, hasHindiVoice } = useSpeech("hi-IN");
 
   const [digits, setDigits] = useState("");
   const [answer, setAnswer] = useState("");
@@ -22,6 +23,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [menuIndex, setMenuIndex] = useState(-1); // item being read right now
   const menuRun = useRef(0);
+  const { items: menuItems, loading: menuLoading } = useMenu();
 
   const stopAll = () => {
     menuRun.current++; // cancels the menu loop
@@ -30,13 +32,15 @@ export default function Dashboard() {
   };
 
   // read the menu one item at a time
+    // read the menu one item at a time
   const playMenu = async () => {
+    if (!menuItems || menuItems.length === 0) return;
     stopAll();
     const run = ++menuRun.current;
-    for (let i = 0; i < MENU.length; i++) {
+    for (let i = 0; i < menuItems.length; i++) {
       if (run !== menuRun.current) return;
       setMenuIndex(i);
-      await speak(`${MENU[i].key} दबाइए, ${MENU[i].label}`);
+      await speak(`${menuItems[i].key} दबाइए, ${menuItems[i].label}`);
       await new Promise((r) => setTimeout(r, 400));
     }
     if (run === menuRun.current) setMenuIndex(-1);
@@ -45,10 +49,10 @@ export default function Dashboard() {
   const onDigit = (d) => setDigits((p) => (p.length < 2 ? p + d : p));
   const onBack = () => setDigits((p) => p.slice(0, -1));
 
-  const onSubmit = async () => {
+    const onSubmit = async () => {
     const n = parseInt(digits, 10);
-    if (!(n >= 1 && n <= MENU.length)) {
-      setError(`1 से ${MENU.length} के बीच नंबर दबाइए`);
+    if (!(n >= 1 && n <= menuItems.length)) {
+      setError(`1 से ${menuItems.length} के बीच नंबर दबाइए`);
       return;
     }
     stopAll();
@@ -69,10 +73,16 @@ export default function Dashboard() {
   };
 
   const onLogout = async () => {
-    stopAll();
-    await dispatch(logoutUser());
-    navigate("/login");
-  };
+  stopAll();
+  try {
+    await logoutUser();
+  } catch {
+    // Ignore server error so user is still logged out locally
+  } finally {
+    dispatch(clearUser());
+    navigate("/login", { replace: true });
+  }
+};
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -84,7 +94,7 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {supported && !hasVoice && (
+        {supported && !hasHindiVoice && (
           <p className="rounded bg-yellow-100 p-2 text-sm text-yellow-800">
             इस डिवाइस पर हिंदी आवाज़ नहीं मिली। आवाज़ साफ़ न आए तो डिवाइस में Hindi voice इंस्टॉल करें।
           </p>
@@ -106,8 +116,9 @@ export default function Dashboard() {
               {menuIndex >= 0 ? "⏹ रोकें" : "🔊 मेनू सुनें"}
             </button>
           </div>
-          <ul className="space-y-1">
-            {MENU.map((m, i) => (
+                    <ul className="space-y-1">
+            {menuLoading && <p className="text-sm text-gray-500 py-2">मेनू लोड हो रहा है...</p>}
+            {menuItems?.map((m, i) => (
               <li
                 key={m.key}
                 onClick={() => setDigits(m.key)}
@@ -126,7 +137,7 @@ export default function Dashboard() {
           <div className="h-14 rounded bg-gray-900 px-4 text-right text-3xl leading-[3.5rem] text-green-400">
             {digits || "—"}
           </div>
-          <Numpad onDigit={onDigit} onBack={onBack} onSubmit={onSubmit} disabled={loading} />
+          <Numpad onDigit={onDigit} onClear={onBack} onSubmit={onSubmit} submitDisabled={loading} />
         </div>
 
         {error && <p className="rounded bg-red-100 p-2 text-sm text-red-700">{error}</p>}
