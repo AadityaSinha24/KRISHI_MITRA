@@ -23,3 +23,12 @@ async def get_prompt_response(
     result = await call_qwen(prompt_text)
 
     return api_response(200, {"text": result}, "Prompt fetched successfully")
+
+
+async def get_menu(current_user: User = Depends(verify_jwt)):
+    # one entry per prompt, in the same order as PROMPTS ("1" ... "10")
+    menu = [
+        {"key": key, "label": MENU_LABELS.get(key, f"विकल्प {key}")}
+        for key in PROMPTS
+    ]
+    return api_response(200, {"menu": menu}, "Menu fetched successfully")
