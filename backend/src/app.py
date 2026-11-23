@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from utils.ApiError import ApiError
 
-from db.index import connect_db, close_db   # your connection file (adjust the module name)
+from db.index import connect_db, close_db   
 
 load_dotenv()
 
@@ -89,8 +89,9 @@ def read_root():
 
 # Import Routes
 
-from routes import users
+from routes import users, prompt
 
 # Routes Declaration
 
 app.include_router(users.router, prefix="/api/v1")
+app.include_router(prompt.router, prefix="/api/v1")
