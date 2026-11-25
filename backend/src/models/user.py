@@ -53,7 +53,8 @@ class User(Document):
     city: Optional[str] = Field(default=None, min_length=1, max_length=100)
     state: Optional[str] = Field(default=None, min_length=3, max_length=100)
     country: Optional[str] = Field(default=None, min_length=3, max_length=100)
-
+    crop: Optional[str] = Field(default=None, min_length=3, max_length=100)
+    language: str = Field(default = "Hindi", min_length=3, max_length=100)
     password: str  # stores the HASH
     refreshToken: Optional[str] = None
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -99,6 +100,8 @@ class User(Document):
             "fullname": self.fullname,
             "city": self.city,
             "state": self.state,
+            "crop":self.crop,
+            "language":self.language,
             "exp": datetime.now(timezone.utc) + delta,
         }
         return jwt.encode(payload, secret_key, algorithm="HS256")

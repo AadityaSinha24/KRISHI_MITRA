@@ -30,6 +30,8 @@ class RegisterRequest(BaseModel):
     city: Optional[Trimmed] = Field(default=None, min_length=1, max_length=100)
     state: Optional[Trimmed] = Field(default=None, min_length=3, max_length=100)
     country: Optional[Trimmed] = Field(default=None, min_length=3, max_length=100)
+    crop: Optional[Trimmed] = Field(default=None, min_length=3, max_length=100)
+    language: Trimmed = Field(default = 'Hindi', min_length=3, max_length=100)
 
 
 async def register_user(data: RegisterRequest):
@@ -45,6 +47,8 @@ async def register_user(data: RegisterRequest):
         city=data.city,
         state=data.state,
         country=data.country,
+        crop=data.crop,
+        language = data.language
     )
 
     try:
@@ -61,6 +65,8 @@ async def register_user(data: RegisterRequest):
         "city": user.city,
         "state": user.state,
         "country": user.country,
+        "crop":user.crop,
+        "language":user.language,
         "createdAt": user.createdAt.isoformat(),
     }
 
@@ -101,6 +107,8 @@ async def login_user(data: LoginRequest):
         "city": user.city,
         "state": user.state,
         "country": user.country,
+        "crop":user.crop,
+        "language": user.language
     }
 
     res = api_response(
@@ -182,6 +190,8 @@ async def get_current_user(current_user: User = Depends(verify_jwt)):
             "city": current_user.city,
             "state": current_user.state,
             "country": current_user.country,
+            "crop":current_user.crop,
+            "language":current_user.language
         },
         "Current user fetched successfully",
     )
