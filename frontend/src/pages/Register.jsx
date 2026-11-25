@@ -9,6 +9,7 @@ import Loader from '../components/Loader'
 import { loginUser, registerUser } from '../services/authService'
 import { setUser } from '../store/authSlice'
 import getErrorMessage from '../utils/getErrorMessage'
+import Select from '../components/Select'
 
 // These limits match the backend (RegisterRequest / User model), measured after trimming spaces.
 const lengthBetween = (min, max, tooShort, tooLong) => (value) => {
@@ -135,11 +136,16 @@ export default function Register() {
         />
 
         <Input
-          label="शहर (वैकल्पिक)"
-          autoComplete="address-level2"
-          error={errors.city?.message}
-          {...register('city', {
-            validate: optionalLength(1, 100, '', 'शहर का नाम 100 अक्षरों से ज़्यादा नहीं हो सकता'),
+          label="देश (वैकल्पिक)"
+          autoComplete="country-name"
+          error={errors.country?.message}
+          {...register('country', {
+            validate: optionalLength(
+              3,
+              100,
+              'देश का नाम कम से कम 3 अक्षरों का हो',
+              'देश का नाम 100 अक्षरों से ज़्यादा नहीं हो सकता',
+            ),
           })}
         />
 
@@ -158,18 +164,40 @@ export default function Register() {
         />
 
         <Input
-          label="देश (वैकल्पिक)"
-          autoComplete="country-name"
-          error={errors.country?.message}
-          {...register('country', {
-            validate: optionalLength(
-              3,
-              100,
-              'देश का नाम कम से कम 3 अक्षरों का हो',
-              'देश का नाम 100 अक्षरों से ज़्यादा नहीं हो सकता',
-            ),
+          label="शहर (वैकल्पिक)"
+          autoComplete="address-level2"
+          error={errors.city?.message}
+          {...register('city', {
+            validate: optionalLength(1, 100, '', 'शहर का नाम 100 अक्षरों से ज़्यादा नहीं हो सकता'),
           })}
         />
+
+        <Input
+          label="फसल "
+          autoComplete="crop-name"
+          error={errors.city?.message}
+          {...register('city', {
+            validate: optionalLength(1, 100, '', 'फसल का नाम 100 अक्षरों से ज़्यादा नहीं हो सकता'),
+          })}
+        />
+
+        <Select
+          label="भाषा"
+          error={errors.language?.message}
+          options={[
+            { value: 'Punjabi', label: 'ਪੰਜਾਬੀ' },
+            { value: 'Hindi', label: 'हिन्दी' },
+            { value: 'English', label: 'English' },
+          ]}
+          {...register('language', {
+            required: 'कृपया भाषा चुनें',
+          })}
+        />
+
+
+        
+
+        
 
         {serverError ? (
           <p role="alert" className="rounded-lg bg-red-50 p-3 text-base font-medium text-red-700">

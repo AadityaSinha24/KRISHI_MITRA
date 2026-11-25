@@ -385,6 +385,11 @@ body::before {
   outline-offset: 2px;
 }
 
+.field-input {
+  background-color: #20352d;
+  color: #f0fdf4;
+}
+
 /* ===== DISPLAY AREA ===== */
 .display-area {
   background: var(--bg-card);
@@ -906,4 +911,9 @@ button.ticker-box:focus-visible {
 .response-replay:focus-visible {
   outline: 2px solid var(--green-400);
   outline-offset: 2px;
+}
+
+form select option {
+  color: #111827;
+  background-color: #ffffff;
 }
